@@ -202,22 +202,20 @@ const PersonLog = () => {
 
   const handleEmployeeSelect = (employee: Employee | null) => {
     setSelectedEmployee(employee);
-    setShowDailyDetail(false);
-    setSelectedDate(null);
+    setRecords([]);
+    setSelectedCalendarDate(new Date());
   };
 
   const handleDayClick = (date: string) => {
-    // Instead of showing daily activities, fetch and show the table format for this date
-    fetchDateSpecificAttendance(date);
+    fetchDailyActivities(date);
   };
 
   const handleCalendarDateSelect = (date: Date | undefined) => {
+    setSelectedCalendarDate(date);
+    setCalendarOpen(false);
     if (date) {
-      setSelectedCalendarDate(date);
       const dateStr = format(date, 'yyyy-MM-dd');
-      // Fetch attendance data for this specific date and show in table format
       fetchDateSpecificAttendance(dateStr);
-      setCalendarOpen(false);
     }
   };
 
@@ -226,6 +224,8 @@ const PersonLog = () => {
 
     try {
       setLoading(true);
+      console.log('Fetching specific date attendance:', dateStr);
+      
       const startOfDay = new Date(dateStr);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(dateStr);
@@ -239,23 +239,56 @@ const PersonLog = () => {
         .lte('timestamp', endOfDay.toISOString())
         .order('timestamp', { ascending: true });
 
-      if (error) throw error;
-
-      // Show all actions for the day, not just paired entry/exit
-      if (attendance && attendance.length > 0) {
-        // Show the raw attendance records as actions
-        setDailyActivities(attendance);
-        setSelectedDate(dateStr);
-        setShowDailyDetail(true);
-      } else {
-        // No data for this date
-        setRecords([]);
+      if (error) {
+        console.error('Error fetching date-specific attendance:', error);
+        throw error;
       }
+
+      console.log('Date-specific attendance records:', attendance?.length);
+
+      // Group by date and process
+      const dailyRecords = new Map();
+      attendance?.forEach(record => {
+        const date = record.timestamp.split('T')[0];
+        if (!dailyRecords.has(date)) {
+          dailyRecords.set(date, { entry: null, exit: null });
+        }
+        if (record.entry_type === 'entry') {
+          dailyRecords.get(date).entry = record;
+        } else {
+          dailyRecords.get(date).exit = record;
+        }
+      });
+
+      const formattedRecords: AttendanceRecord[] = Array.from(dailyRecords.entries()).map(([date, { entry, exit }]) => {
+        let attendanceMinutes = 0;
+        if (entry && exit) {
+          const entryTime = new Date(entry.timestamp);
+          const exitTime = new Date(exit.timestamp);
+          attendanceMinutes = Math.floor((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
+        }
+
+        return {
+          employee_id: selectedEmployee.id,
+          employee_name: selectedEmployee.name,
+          job_class: selectedEmployee.job_class || 'Employee',
+          entry_time: entry ? new Date(entry.timestamp).toLocaleTimeString() : null,
+          exit_time: exit ? new Date(exit.timestamp).toLocaleTimeString() : null,
+          entry_snapshot: entry?.snapshot_url || null,
+          exit_snapshot: exit?.snapshot_url || null,
+          attendance_minutes: attendanceMinutes,
+          working_hours_minutes: 480, // 8 hours default
+          date: date
+        };
+      });
+
+      console.log('Formatted date-specific records:', formattedRecords.length);
+      setRecords(formattedRecords);
     } catch (error) {
       console.error('Error fetching date-specific attendance:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch attendance for selected date",
+        description: "Failed to fetch date-specific attendance",
         variant: "destructive",
       });
     } finally {
@@ -266,7 +299,7 @@ const PersonLog = () => {
   const handleExport = () => {
     if (!selectedEmployee || records.length === 0) return;
     
-    const filename = `person-log-${selectedEmployee.name}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const filename = `${selectedEmployee.name}_attendance_${format(new Date(), 'yyyy-MM-dd')}.csv`;
     exportAttendanceToCSV(records, filename);
   };
 
@@ -277,14 +310,14 @@ const PersonLog = () => {
 
   if (showDailyDetail && selectedDate) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex items-center space-x-4 mb-6">
           <Button variant="outline" onClick={handleBackToMain}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Daily Activity</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Daily Activity</h1>
             <p className="text-gray-600">
               {selectedEmployee?.name} - {format(new Date(selectedDate), 'PPP')}
             </p>
@@ -302,7 +335,7 @@ const PersonLog = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Person Log</h1>
