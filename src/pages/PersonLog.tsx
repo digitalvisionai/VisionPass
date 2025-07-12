@@ -1,0 +1,641 @@
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { Download, User, Eye, ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
+import { format, isFuture } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import AttendanceTable from '@/components/AttendanceTable';
+import MonthlyView from '@/components/MonthlyView';
+import DailyDetailView from '@/components/DailyDetailView';
+import EmployeeSearch from '@/components/EmployeeSearch';
+import { AttendanceRecord } from '@/hooks/useAttendanceData';
+import { exportAttendanceToCSV } from '@/utils/csvExport';
+
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  job_class: string;
+  hire_date: string;
+}
+
+interface ActivityLog {
+  id: string;
+  timestamp: string;
+  entry_type: 'entry' | 'exit';
+  snapshot_url?: string;
+}
+
+const PersonLog = () => {
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [reportType, setReportType] = useState<string>('daily');
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dailyActivities, setDailyActivities] = useState<ActivityLog[]>([]);
+  const [showDailyDetail, setShowDailyDetail] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchAllEmployees();
+  }, []);
+
+  useEffect(() => {
+    if (selectedEmployee) {
+      fetchPersonAttendance();
+    }
+  }, [selectedEmployee, reportType]);
+
+  // Load today's data when employee is selected and daily report is chosen
+  useEffect(() => {
+    if (selectedEmployee && reportType === 'daily') {
+      const todayStr = format(selectedCalendarDate || new Date(), 'yyyy-MM-dd');
+      fetchDateSpecificAttendance(todayStr);
+    }
+  }, [selectedEmployee, reportType, selectedCalendarDate]);
+
+  const fetchAllEmployees = async () => {
+    try {
+      const { data: employees, error } = await supabase
+        .from('employees')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching employees:', error);
+        throw error;
+      }
+
+      setAllEmployees(employees || []);
+    } catch (error) {
+      console.error('Error fetching all employees:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch employees",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchPersonAttendance = async () => {
+    if (!selectedEmployee) return;
+
+    try {
+      setLoading(true);
+      console.log('Fetching person attendance for:', selectedEmployee.name);
+      
+      // Get last 30 days of data
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+
+      const { data: attendance, error } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('employee_id', selectedEmployee.id)
+        .gte('timestamp', startDate.toISOString())
+        .lte('timestamp', endDate.toISOString())
+        .order('timestamp', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching attendance:', error);
+        throw error;
+      }
+
+      console.log('Attendance records fetched:', attendance?.length);
+
+      // Group by date and process
+      const dailyRecords = new Map();
+      attendance?.forEach(record => {
+        const date = record.timestamp.split('T')[0];
+        if (!dailyRecords.has(date)) {
+          dailyRecords.set(date, { entry: null, exit: null });
+        }
+        if (record.entry_type === 'entry') {
+          dailyRecords.get(date).entry = record;
+        } else {
+          dailyRecords.get(date).exit = record;
+        }
+      });
+
+      const formattedRecords: AttendanceRecord[] = Array.from(dailyRecords.entries()).map(([date, { entry, exit }]) => {
+        let attendanceMinutes = 0;
+        if (entry && exit) {
+          const entryTime = new Date(entry.timestamp);
+          const exitTime = new Date(exit.timestamp);
+          attendanceMinutes = Math.floor((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
+        }
+
+        return {
+          employee_id: selectedEmployee.id,
+          employee_name: selectedEmployee.name,
+          job_class: selectedEmployee.job_class || 'Employee',
+          entry_time: entry ? new Date(entry.timestamp).toLocaleTimeString() : null,
+          exit_time: exit ? new Date(exit.timestamp).toLocaleTimeString() : null,
+          entry_snapshot: entry?.snapshot_url || null,
+          exit_snapshot: exit?.snapshot_url || null,
+          attendance_minutes: attendanceMinutes,
+          working_hours_minutes: 480, // 8 hours default
+          date: date
+        };
+      });
+
+      // Sort by date, most recent first
+      formattedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      console.log('Formatted records:', formattedRecords.length);
+      setRecords(formattedRecords);
+    } catch (error) {
+      console.error('Error fetching person attendance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch person attendance",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDailyActivities = async (date: string) => {
+    if (!selectedEmployee) return;
+
+    try {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const { data: activities, error } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('employee_id', selectedEmployee.id)
+        .gte('timestamp', startOfDay.toISOString())
+        .lte('timestamp', endOfDay.toISOString())
+        .order('timestamp', { ascending: true });
+
+      if (error) throw error;
+
+      setDailyActivities(activities || []);
+      setSelectedDate(date);
+      setShowDailyDetail(true);
+    } catch (error) {
+      console.error('Error fetching daily activities:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch daily activities",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEmployeeSelect = (employee: Employee | null) => {
+    setSelectedEmployee(employee);
+    setShowDailyDetail(false);
+    setSelectedDate(null);
+  };
+
+  const handleDayClick = (date: string) => {
+    // Instead of showing daily activities, fetch and show the table format for this date
+    fetchDateSpecificAttendance(date);
+  };
+
+  const handleCalendarDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedCalendarDate(date);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      // Fetch attendance data for this specific date and show in table format
+      fetchDateSpecificAttendance(dateStr);
+      setCalendarOpen(false);
+    }
+  };
+
+  const fetchDateSpecificAttendance = async (dateStr: string) => {
+    if (!selectedEmployee) return;
+
+    try {
+      setLoading(true);
+      const startOfDay = new Date(dateStr);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(dateStr);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const { data: attendance, error } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('employee_id', selectedEmployee.id)
+        .gte('timestamp', startOfDay.toISOString())
+        .lte('timestamp', endOfDay.toISOString())
+        .order('timestamp', { ascending: true });
+
+      if (error) throw error;
+
+      // Show all actions for the day, not just paired entry/exit
+      if (attendance && attendance.length > 0) {
+        // Show the raw attendance records as actions
+        setDailyActivities(attendance);
+        setSelectedDate(dateStr);
+        setShowDailyDetail(true);
+      } else {
+        // No data for this date
+        setRecords([]);
+      }
+    } catch (error) {
+      console.error('Error fetching date-specific attendance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch attendance for selected date",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (!selectedEmployee || records.length === 0) return;
+    
+    const filename = `person-log-${selectedEmployee.name}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    exportAttendanceToCSV(records, filename);
+  };
+
+  const handleBackToMain = () => {
+    setShowDailyDetail(false);
+    setSelectedDate(null);
+  };
+
+  if (showDailyDetail && selectedDate) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center space-x-4 mb-6">
+          <Button variant="outline" onClick={handleBackToMain}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Daily Activity</h1>
+            <p className="text-gray-600">
+              {selectedEmployee?.name} - {format(new Date(selectedDate), 'PPP')}
+            </p>
+          </div>
+        </div>
+        
+        <DailyDetailView
+          date={selectedDate}
+          activities={dailyActivities}
+          employeeName={selectedEmployee?.name || ''}
+          onClose={handleBackToMain}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Person Log</h1>
+          <p className="text-gray-600">Individual employee attendance tracking</p>
+        </div>
+        {selectedEmployee && records.length > 0 && (
+          <div className="flex space-x-2">
+            <Button onClick={handleExport} className="flex items-center space-x-2 w-full sm:w-auto">
+              <Download className="h-4 w-4" />
+              <span>Export CSV</span>
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-6 space-y-4">
+        {/* Search Section */}
+        <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Search Employee
+            </label>
+            <EmployeeSearch
+              onEmployeeSelect={handleEmployeeSelect}
+              selectedEmployee={selectedEmployee}
+              allEmployees={allEmployees}
+            />
+          </div>
+
+          {selectedEmployee && (
+            <div className="w-full lg:w-48">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Report Type
+              </label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Report type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily Report</SelectItem>
+                  <SelectItem value="monthly">Monthly Report</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {/* Employee Table - Mobile Responsive */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Or choose from the list below:
+          </label>
+          
+          {/* Mobile View - Cards */}
+          <div className="lg:hidden space-y-3">
+            {allEmployees.map((employee) => (
+              <div
+                key={employee.id}
+                className={`bg-white border rounded-lg p-4 cursor-pointer transition-colors ${
+                  selectedEmployee?.id === employee.id 
+                    ? 'border-blue-500 bg-blue-50 shadow-md' 
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+                onClick={() => handleEmployeeSelect(employee)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-medium text-gray-900">{employee.name}</h3>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    {employee.job_class || 'Employee'}
+                  </span>
+                </div>
+                <div className="space-y-1 text-sm text-gray-600">
+                  {employee.email && (
+                    <div className="flex items-center">
+                      <span className="font-medium w-12">Email:</span>
+                      <span className="truncate">{employee.email}</span>
+                    </div>
+                  )}
+                  {employee.phone && (
+                    <div className="flex items-center">
+                      <span className="font-medium w-12">Phone:</span>
+                      <span>{employee.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop View - Table */}
+          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div className="max-h-60 overflow-y-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Job Class
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Phone
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {allEmployees.map((employee) => (
+                    <tr 
+                      key={employee.id}
+                      className={`hover:bg-gray-50 cursor-pointer ${
+                        selectedEmployee?.id === employee.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                      }`}
+                      onClick={() => handleEmployeeSelect(employee)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {employee.name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {employee.job_class || 'Employee'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {employee.email || '-'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {employee.phone || '-'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar for Daily Report */}
+        {selectedEmployee && reportType === 'daily' && (
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+            <label className="text-sm font-medium text-gray-700">
+              Select Date:
+            </label>
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full sm:w-[240px] justify-start text-left font-normal",
+                      !selectedCalendarDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedCalendarDate ? format(selectedCalendarDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedCalendarDate}
+                    onSelect={handleCalendarDateSelect}
+                    disabled={(date) => isFuture(date)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {selectedCalendarDate && (
+                <Button 
+                  onClick={() => handleCalendarDateSelect(selectedCalendarDate)}
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Details
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selectedEmployee && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <User className="h-5 w-5 mr-2" />
+              {selectedEmployee.name}
+            </CardTitle>
+            <CardDescription>
+              {selectedEmployee.email} • {selectedEmployee.job_class}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : reportType === 'monthly' ? (
+              <MonthlyView
+                records={records}
+                employeeName={selectedEmployee.name}
+                onDayClick={handleDayClick}
+              />
+            ) : records.length > 0 ? (
+              <div>
+                {/* Mobile View - Cards */}
+                <div className="lg:hidden space-y-3">
+                  {records.map((record, index) => {
+                    const actions = [];
+                    if (record.entry_time) {
+                      actions.push({
+                        id: `${record.date}-entry`,
+                        timestamp: record.entry_time,
+                        type: 'Entry',
+                        snapshot: record.entry_snapshot
+                      });
+                    }
+                    if (record.exit_time) {
+                      actions.push({
+                        id: `${record.date}-exit`,
+                        timestamp: record.exit_time,
+                        type: 'Exit',
+                        snapshot: record.exit_snapshot
+                      });
+                    }
+                    return actions.map((action, actionIndex) => (
+                      <div key={action.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-500">
+                            Action {index + 1}.{actionIndex + 1}
+                          </span>
+                          <Badge variant={action.type === 'Entry' ? 'default' : 'secondary'}>
+                            {action.type}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <span className="font-medium">Time:</span> {action.timestamp}
+                          </div>
+                          {action.snapshot && (
+                            <div>
+                              <span className="text-sm font-medium">Snapshot:</span>
+                              <img 
+                                src={action.snapshot} 
+                                alt={action.type}
+                                className="mt-1 w-16 h-16 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
+                                onClick={() => window.open(action.snapshot!, '_blank')}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ));
+                  })}
+                </div>
+
+                {/* Desktop View - Table */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead>
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action #</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Snapshot</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.map((record, index) => {
+                        const actions = [];
+                        if (record.entry_time) {
+                          actions.push({
+                            id: `${record.date}-entry`,
+                            timestamp: record.entry_time,
+                            type: 'Entry',
+                            snapshot: record.entry_snapshot
+                          });
+                        }
+                        if (record.exit_time) {
+                          actions.push({
+                            id: `${record.date}-exit`,
+                            timestamp: record.exit_time,
+                            type: 'Exit',
+                            snapshot: record.exit_snapshot
+                          });
+                        }
+                        return actions.map((action, actionIndex) => (
+                          <tr key={action.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 font-medium">{index + 1}.{actionIndex + 1}</td>
+                            <td className="px-4 py-2">{action.timestamp}</td>
+                            <td className="px-4 py-2">
+                              <Badge variant={action.type === 'Entry' ? 'default' : 'secondary'}>
+                                {action.type}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2">
+                              {action.snapshot ? (
+                                <img 
+                                  src={action.snapshot} 
+                                  alt={action.type}
+                                  className="w-12 h-12 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
+                                  onClick={() => window.open(action.snapshot!, '_blank')}
+                                />
+                              ) : '-'}
+                            </td>
+                          </tr>
+                        ));
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No attendance records found for the selected employee.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default PersonLog;
