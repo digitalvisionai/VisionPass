@@ -58,37 +58,37 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="bg-slate-900 text-white w-64 min-h-screen flex flex-col">
+    <div className="bg-slate-900 text-white w-full lg:w-64 min-h-screen lg:min-h-0 flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-slate-700">
+      <div className="p-4 lg:p-6 border-b border-slate-700">
         <div className="flex items-center space-x-3">
           <div className="bg-blue-600 p-2 rounded-lg">
             <Shield className="h-6 w-6" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold">VisionPass</h1>
-            <p className="text-sm text-slate-400">Admin Panel</p>
+          <div className="flex-1">
+            <h1 className="text-lg lg:text-xl font-bold">VisionPass</h1>
+            <p className="text-xs lg:text-sm text-slate-400">Admin Panel</p>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
+      <nav className="flex-1 p-2 lg:p-4">
+        <ul className="space-y-1 lg:space-y-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
             return (
               <li key={item.name}>
                 <NavLink
                   to={item.href}
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  className={`flex items-center space-x-2 lg:space-x-3 p-2 lg:p-3 rounded-lg transition-colors touch-manipulation ${
                     isActive
                       ? 'bg-blue-600 text-white'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.name}</span>
+                  <item.icon className="h-4 w-4 lg:h-5 lg:w-5" />
+                  <span className="text-sm lg:text-base">{item.name}</span>
                 </NavLink>
               </li>
             );
@@ -97,14 +97,14 @@ const Sidebar = () => {
       </nav>
 
       {/* Logout */}
-      <div className="p-4 border-t border-slate-700">
+      <div className="p-2 lg:p-4 border-t border-slate-700">
         <Button
           onClick={handleLogout}
           variant="ghost"
-          className="w-full justify-start text-slate-300 hover:bg-slate-800 hover:text-white"
+          className="w-full justify-start text-slate-300 hover:bg-slate-800 hover:text-white touch-manipulation"
         >
-          <LogOut className="h-5 w-5 mr-3" />
-          Logout
+          <LogOut className="h-4 w-4 lg:h-5 lg:w-5 mr-2 lg:mr-3" />
+          <span className="text-sm lg:text-base">Logout</span>
         </Button>
       </div>
     </div>
