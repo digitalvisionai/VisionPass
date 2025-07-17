@@ -16,9 +16,10 @@ interface DailyDetailViewProps {
   activities: ActivityLog[];
   employeeName: string;
   onClose: () => void;
+  onRemove?: (activityId: string) => void;
 }
 
-const DailyDetailView = ({ date, activities, employeeName, onClose }: DailyDetailViewProps) => {
+const DailyDetailView = ({ date, activities, employeeName, onClose, onRemove }: DailyDetailViewProps) => {
   const formatTime = (timestamp: string) => {
     return format(new Date(timestamp), 'HH:mm:ss');
   };
@@ -61,6 +62,7 @@ const DailyDetailView = ({ date, activities, employeeName, onClose }: DailyDetai
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Snapshot</th>
+                  {onRemove && <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Remove</th>}
                 </tr>
               </thead>
               <tbody>
@@ -83,6 +85,16 @@ const DailyDetailView = ({ date, activities, employeeName, onClose }: DailyDetai
                         />
                       ) : '-'}
                     </td>
+                    {onRemove && (
+                      <td className="px-4 py-2">
+                        <button
+                          className="text-red-600 hover:underline text-xs"
+                          onClick={() => onRemove(activity.id)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

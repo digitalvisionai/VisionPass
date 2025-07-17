@@ -17,7 +17,7 @@ import DailyDetailView from '@/components/DailyDetailView';
 import EmployeeSearch from '@/components/EmployeeSearch';
 import ImageViewer from '@/components/ImageViewer';
 import { AttendanceRecord } from '@/hooks/useAttendanceData';
-import { exportAttendanceToCSV } from '@/utils/csvExport';
+import { exportAttendanceToCSV, exportMonthlyLogCSV } from '@/utils/csvExport';
 import { exportPersonLogDetailsToCsv } from '@/utils/detailedCsvExport';
 
 interface Employee {
@@ -365,6 +365,22 @@ const PersonLog = () => {
     });
   };
 
+  // Add this function to handle activity removal
+  const handleRemoveActivity = async (activityId: string) => {
+    if (!window.confirm('Are you sure you want to remove this activity?')) return;
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('id', activityId);
+      if (error) throw error;
+      setDailyActivities((prev) => prev.filter((a) => a.id !== activityId));
+      toast({ title: 'Success', description: 'Activity removed.' });
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to remove activity', variant: 'destructive' });
+    }
+  };
+
   if (showDailyDetail && selectedDate) {
     return (
       <div className="p-4 sm:p-6">
@@ -382,7 +398,7 @@ const PersonLog = () => {
             </div>
           </div>
           <Button 
-            onClick={handleExport}
+            onClick={() => exportPersonLogDetailsToCsv(dailyActivities, `${selectedEmployee.name}_daily_details_${selectedDate}.csv`)}
             className="flex items-center space-x-2 w-full sm:w-auto"
           >
             <Download className="h-4 w-4" />
@@ -395,6 +411,7 @@ const PersonLog = () => {
           activities={dailyActivities}
           employeeName={selectedEmployee?.name || ''}
           onClose={handleBackToMain}
+          onRemove={handleRemoveActivity}
         />
       </div>
     );
@@ -407,14 +424,6 @@ const PersonLog = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Person Log</h1>
           <p className="text-gray-600">Individual employee attendance tracking</p>
         </div>
-        {selectedEmployee && records.length > 0 && (
-          <div className="flex space-x-2">
-            <Button onClick={handleExport} className="flex items-center space-x-2 w-full sm:w-auto">
-              <Download className="h-4 w-4" />
-              <span>Export CSV</span>
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className="mb-6 space-y-4">
@@ -592,6 +601,24 @@ const PersonLog = () => {
           </div>
         )}
       </div>
+
+      {/* CSV Export Buttons for Monthly and Daily Reports */}
+      {selectedEmployee && records.length > 0 && (
+        <div className="flex space-x-2 mb-4">
+          {reportType === 'monthly' && (
+            <Button onClick={() => exportMonthlyLogCSV(records, `${selectedEmployee.name}_monthly_report_${format(new Date(), 'yyyy-MM')}.csv`)} className="flex items-center space-x-2">
+              <Download className="h-4 w-4" />
+              <span>Export Monthly CSV</span>
+            </Button>
+          )}
+          {reportType === 'daily' && !showDailyDetail && (
+            <Button onClick={() => exportPersonLogDetailsToCsv(dailyActivities, `${selectedEmployee.name}_daily_details_${format(new Date(selectedCalendarDate || new Date()), 'yyyy-MM-dd')}.csv`)} className="flex items-center space-x-2">
+              <Download className="h-4 w-4" />
+              <span>Export Details CSV</span>
+            </Button>
+          )}
+        </div>
+      )}
 
       {selectedEmployee && (
         <Card>

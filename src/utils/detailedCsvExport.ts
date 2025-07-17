@@ -10,24 +10,20 @@ interface ActivityLog {
 }
 
 export const exportPersonLogDetailsToCsv = (
-  records: AttendanceRecord[], 
   activities: ActivityLog[], 
-  employeeName: string, 
   filename: string
 ) => {
-  const headers = ['Employee Name', 'Date', 'Time', 'Action Type', 'Snapshot URL'];
-  
+  const headers = ['Entry #', 'Date', 'Time', 'Type', 'Snapshot'];
   const csvContent = [
     headers.join(','),
-    ...activities.map(activity => [
-      employeeName,
+    ...activities.map((activity, idx) => [
+      idx + 1,
       new Date(activity.timestamp).toLocaleDateString(),
       new Date(activity.timestamp).toLocaleTimeString(),
       activity.entry_type === 'entry' ? 'Entry' : 'Exit',
       activity.snapshot_url || ''
     ].join(','))
   ].join('\n');
-
   downloadCsv(csvContent, filename);
 };
 

@@ -8,11 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Shield, UserPlus, Users, Trash2, Settings } from 'lucide-react';
+import { Shield, UserPlus, Users, Trash2, Settings, UserPen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import WorkingHoursSettings from '@/components/WorkingHoursSettings';
 import AddEmployeeForm from '@/components/AddEmployeeForm';
+import { deleteEmployeePhoto } from '@/utils/photoUpload';
+import EditEmployeeForm from '@/components/EditEmployeeForm';
 
 interface Admin {
   id: string;
@@ -40,6 +42,7 @@ const AdminManagement = () => {
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '' });
   const [addingAdmin, setAddingAdmin] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -170,6 +173,11 @@ const AdminManagement = () => {
     if (!confirm('Are you sure you want to delete this employee?')) return;
 
     try {
+      // Find the employee to get their name for photo deletion
+      const employee = employees.find(e => e.id === employeeId);
+      if (employee) {
+        await deleteEmployeePhoto(employee.name);
+      }
       const { error } = await supabase
         .from('employees')
         .delete()
@@ -382,6 +390,15 @@ const AdminManagement = () => {
                           <Trash2 className="h-3 w-3" />
                           <span>Delete</span>
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingEmployee(employee)}
+                          className="flex items-center space-x-1 ml-2"
+                        >
+                          <UserPen className="h-3 w-3" />
+                          <span>Edit</span>
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -397,6 +414,26 @@ const AdminManagement = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={!!editingEmployee} onOpenChange={(open) => { if (!open) setEditingEmployee(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>Edit employee information and photo</DialogDescription>
+          </DialogHeader>
+          {editingEmployee && (
+            <EditEmployeeForm
+              employee={editingEmployee}
+              onEmployeeUpdated={() => {
+                setEditingEmployee(null);
+                fetchEmployees();
+              }}
+              onCancel={() => setEditingEmployee(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
