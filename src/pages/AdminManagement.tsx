@@ -15,6 +15,8 @@ import WorkingHoursSettings from '@/components/WorkingHoursSettings';
 import AddEmployeeForm from '@/components/AddEmployeeForm';
 import { deleteEmployeePhoto } from '@/utils/photoUpload';
 import EditEmployeeForm from '@/components/EditEmployeeForm';
+import WorkTimeSettings from '@/components/WorkTimeSettings';
+import { useWorkTimeSettings } from '@/hooks/useWorkTimeSettings';
 
 interface Admin {
   id: string;
@@ -44,6 +46,7 @@ const AdminManagement = () => {
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
+  const workTimeSettings = useWorkTimeSettings();
 
   useEffect(() => {
     fetchAdmins();
@@ -411,6 +414,11 @@ const AdminManagement = () => {
         <TabsContent value="settings">
           <div className="space-y-6">
             <WorkingHoursSettings />
+            <WorkTimeSettings 
+              workStartTime={workTimeSettings.workStartTime} 
+              workEndTime={workTimeSettings.workEndTime} 
+              onUpdate={workTimeSettings.refetch} 
+            />
           </div>
         </TabsContent>
       </Tabs>

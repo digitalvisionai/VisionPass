@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import RealTimeAttendance from '@/components/RealTimeAttendance';
 import ImageViewer from '@/components/ImageViewer';
+import { useWorkTimeSettings } from '@/hooks/useWorkTimeSettings';
 
 interface DashboardStats {
   totalEmployees: number;
@@ -40,6 +41,7 @@ const Dashboard = () => {
     imageUrl: null,
     title: '',
   });
+  const { workStartTime } = useWorkTimeSettings();
 
   useEffect(() => {
     fetchDashboardData();
@@ -76,14 +78,39 @@ const Dashboard = () => {
       const today = new Date().toISOString().split('T')[0];
       const { data: todayRecords, error: todayError } = await supabase
         .from('attendance_records')
-        .select('employee_id, entry_type')
+        .select('employee_id, entry_type, timestamp')
         .gte('timestamp', `${today}T00:00:00`)
         .lt('timestamp', `${today}T23:59:59`);
 
       if (todayError) throw todayError;
+      const typedTodayRecords = todayRecords as Array<{ employee_id: string; entry_type: 'entry' | 'exit'; timestamp: string }>;
 
       // Count unique employees who attended today
-      const uniqueEmployeesToday = new Set(todayRecords?.map(r => r.employee_id) || []).size;
+      const uniqueEmployeesToday = new Set(typedTodayRecords?.map(r => r.employee_id) || []).size;
+
+      // Calculate late arrivals and on-time percentage
+      let lateArrivals = 0;
+      let onTimeCount = 0;
+      let totalArrivals = 0;
+      const startTime = workStartTime || '09:00';
+      typedTodayRecords?.forEach(record => {
+        if (record.entry_type === 'entry') {
+          totalArrivals++;
+          const entryTime = new Date(record.timestamp);
+          const entryHour = entryTime.getHours();
+          const entryMinute = entryTime.getMinutes();
+          const [startHour, startMinute] = startTime.split(':').map(Number);
+          if (
+            entryHour > startHour ||
+            (entryHour === startHour && entryMinute > startMinute)
+          ) {
+            lateArrivals++;
+          } else {
+            onTimeCount++;
+          }
+        }
+      });
+      const onTimePercentage = totalArrivals > 0 ? Math.round((onTimeCount / totalArrivals) * 100) : 0;
 
       // Fetch recent activities with employee names
       const { data: activities, error: activitiesError } = await supabase
@@ -111,8 +138,8 @@ const Dashboard = () => {
       setStats({
         totalEmployees: employees?.length || 0,
         todayAttendance: uniqueEmployeesToday,
-        onTimePercentage: 85, // This would need more complex calculation based on work hours
-        lateArrivals: 3, // This would need calculation based on work start time
+        onTimePercentage,
+        lateArrivals,
       });
 
       setRecentActivities(formattedActivities);
