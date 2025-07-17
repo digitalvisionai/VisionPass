@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Download, Users, RefreshCw } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { useAttendanceData } from '@/hooks/useAttendanceData';
+import { useWorkTimeSettings } from '@/hooks/useWorkTimeSettings';
 import AttendanceTable from '@/components/AttendanceTable';
 import DateRangeSelector from '@/components/DateRangeSelector';
-import { exportAttendanceToCSV } from '@/utils/csvExport';
+import { exportStaffLogWithColorCoding } from '@/utils/detailedCsvExport';
 
 const StaffLog = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [dateRange, setDateRange] = useState<string>('today');
+  const { workStartTime, workEndTime } = useWorkTimeSettings();
 
   const targetDate = useMemo(() => {
     const today = new Date();
@@ -33,14 +35,43 @@ const StaffLog = () => {
   console.log('StaffLog - targetDate:', targetDate);
   console.log('StaffLog - records:', records);
   console.log('StaffLog - loading:', loading);
+  console.log('StaffLog - workStartTime:', workStartTime);
+  console.log('StaffLog - workEndTime:', workEndTime);
 
   const handleExport = () => {
     const filename = `staff-log-${format(targetDate, 'yyyy-MM-dd')}.csv`;
-    exportAttendanceToCSV(records, filename);
+    exportStaffLogWithColorCoding(records, filename, workStartTime, workEndTime);
   };
 
   const handleRefresh = () => {
+    console.log('Refreshing data for date:', targetDate);
     refetch(targetDate);
+  };
+
+  // Add color coding logic
+  const getRowClassName = (record: any) => {
+    const leakMinutes = Math.max(0, record.working_hours_minutes - record.attendance_minutes);
+    const isLateEntry = record.entry_time ? isLateArrival(record.entry_time, workStartTime) : false;
+    const hasLeakingHours = leakMinutes > 0;
+    
+    if (isLateEntry && hasLeakingHours) {
+      return 'bg-red-50 border-l-4 border-red-500'; // Late and under hours
+    } else if (isLateEntry) {
+      return 'bg-orange-50 border-l-4 border-orange-500'; // Late arrival
+    } else if (hasLeakingHours) {
+      return 'bg-yellow-50 border-l-4 border-yellow-500'; // Under hours
+    }
+    return 'bg-green-50 border-l-4 border-green-500'; // On time
+  };
+
+  const isLateArrival = (entryTime: string, workStartTime: string): boolean => {
+    try {
+      const entry = new Date(`1970-01-01T${entryTime}`);
+      const workStart = new Date(`1970-01-01T${workStartTime}:00`);
+      return entry > workStart;
+    } catch {
+      return false;
+    }
   };
 
   return (
@@ -65,6 +96,7 @@ const StaffLog = () => {
             onClick={handleExport} 
             size="sm"
             className="flex items-center space-x-1 sm:space-x-2"
+            disabled={records.length === 0}
           >
             <Download className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="text-xs sm:text-sm">Export CSV</span>
@@ -81,6 +113,29 @@ const StaffLog = () => {
         />
       </div>
 
+      {/* Color Legend */}
+      <div className="mb-4 p-3 bg-white rounded-lg border">
+        <h3 className="text-sm font-medium text-gray-700 mb-2">Status Legend:</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 bg-green-500 rounded"></div>
+            <span>On Time</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 bg-orange-500 rounded"></div>
+            <span>Late Arrival</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+            <span>Under Hours</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 bg-red-500 rounded"></div>
+            <span>Late & Under Hours</span>
+          </div>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center text-base sm:text-lg">
@@ -89,6 +144,10 @@ const StaffLog = () => {
           </CardTitle>
           <CardDescription>
             Detailed attendance tracking for all staff members on {format(targetDate, 'MMMM dd, yyyy')}
+            <br />
+            <span className="text-xs text-gray-500">
+              Work Hours: {workStartTime} - {workEndTime}
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,7 +171,17 @@ const StaffLog = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <AttendanceTable records={records} showJobClass={true} />
+              <div className="space-y-2">
+                {records.map((record, index) => (
+                  <div key={`${record.employee_id}-${record.date}`} className={`p-3 rounded-lg ${getRowClassName(record)}`}>
+                    <AttendanceTable 
+                      records={[record]} 
+                      showJobClass={true}
+                      workStartTime={workStartTime}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>

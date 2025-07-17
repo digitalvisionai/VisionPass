@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,7 @@ import DailyDetailView from '@/components/DailyDetailView';
 import EmployeeSearch from '@/components/EmployeeSearch';
 import { AttendanceRecord } from '@/hooks/useAttendanceData';
 import { exportAttendanceToCSV } from '@/utils/csvExport';
+import { exportPersonLogDetailsToCsv } from '@/utils/detailedCsvExport';
 
 interface Employee {
   id: string;
@@ -54,15 +54,15 @@ const PersonLog = () => {
 
   useEffect(() => {
     if (selectedEmployee) {
-      fetchPersonAttendance();
-    }
-  }, [selectedEmployee, reportType]);
-
-  // Load today's data when employee is selected and daily report is chosen
-  useEffect(() => {
-    if (selectedEmployee && reportType === 'daily') {
-      const todayStr = format(selectedCalendarDate || new Date(), 'yyyy-MM-dd');
-      fetchDateSpecificAttendance(todayStr);
+      if (reportType === 'daily') {
+        // For daily report, fetch data for the selected calendar date
+        const dateStr = format(selectedCalendarDate || new Date(), 'yyyy-MM-dd');
+        console.log('PersonLog - Fetching daily data for:', dateStr);
+        fetchDateSpecificAttendance(dateStr);
+      } else {
+        // For monthly report, fetch last 30 days
+        fetchPersonAttendance();
+      }
     }
   }, [selectedEmployee, reportType, selectedCalendarDate]);
 
@@ -173,6 +173,7 @@ const PersonLog = () => {
     if (!selectedEmployee) return;
 
     try {
+      console.log('Fetching daily activities for:', date, selectedEmployee.name);
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
@@ -188,6 +189,7 @@ const PersonLog = () => {
 
       if (error) throw error;
 
+      console.log('Daily activities found:', activities?.length || 0);
       setDailyActivities(activities || []);
       setSelectedDate(date);
       setShowDailyDetail(true);
@@ -201,7 +203,7 @@ const PersonLog = () => {
     }
   };
 
-  const handleEmployeeSelect = (employee: Omit<Employee, 'hire_date'> | null) => {
+  const handleEmployeeSelect = (employee: Omit<Employee, "hire_date"> | null) => {
     if (employee) {
       // Convert the employee from EmployeeSearch format to PersonLog format
       const fullEmployee: Employee = {
@@ -221,12 +223,9 @@ const PersonLog = () => {
   };
 
   const handleCalendarDateSelect = (date: Date | undefined) => {
+    console.log('Calendar date selected:', date);
     setSelectedCalendarDate(date);
     setCalendarOpen(false);
-    if (date) {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      fetchDateSpecificAttendance(dateStr);
-    }
   };
 
   const fetchDateSpecificAttendance = async (dateStr: string) => {
@@ -256,41 +255,55 @@ const PersonLog = () => {
 
       console.log('Date-specific attendance records:', attendance?.length);
 
-      // Group by date and process
-      const dailyRecords = new Map();
-      attendance?.forEach(record => {
-        const date = record.timestamp.split('T')[0];
-        if (!dailyRecords.has(date)) {
-          dailyRecords.set(date, { entry: null, exit: null });
-        }
-        if (record.entry_type === 'entry') {
-          dailyRecords.get(date).entry = record;
-        } else {
-          dailyRecords.get(date).exit = record;
-        }
-      });
+      // Create individual records for each entry/exit instead of grouping
+      const formattedRecords: AttendanceRecord[] = [];
+      
+      if (attendance && attendance.length > 0) {
+        // Group by date first to calculate total attendance
+        const dailyRecords = new Map();
+        attendance.forEach(record => {
+          const date = record.timestamp.split('T')[0];
+          if (!dailyRecords.has(date)) {
+            dailyRecords.set(date, { entries: [], exits: [] });
+          }
+          if (record.entry_type === 'entry') {
+            dailyRecords.get(date).entries.push(record);
+          } else {
+            dailyRecords.get(date).exits.push(record);
+          }
+        });
 
-      const formattedRecords: AttendanceRecord[] = Array.from(dailyRecords.entries()).map(([date, { entry, exit }]) => {
-        let attendanceMinutes = 0;
-        if (entry && exit) {
-          const entryTime = new Date(entry.timestamp);
-          const exitTime = new Date(exit.timestamp);
-          attendanceMinutes = Math.floor((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
-        }
+        // Create records for each individual entry/exit
+        attendance.forEach(record => {
+          const date = record.timestamp.split('T')[0];
+          const dayData = dailyRecords.get(date);
+          
+          // Calculate total attendance for the day
+          let totalAttendanceMinutes = 0;
+          if (dayData.entries.length > 0 && dayData.exits.length > 0) {
+            const firstEntry = dayData.entries[0];
+            const lastExit = dayData.exits[dayData.exits.length - 1];
+            const entryTime = new Date(firstEntry.timestamp);
+            const exitTime = new Date(lastExit.timestamp);
+            totalAttendanceMinutes = Math.floor((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
+          }
 
-        return {
-          employee_id: selectedEmployee.id,
-          employee_name: selectedEmployee.name,
-          job_class: selectedEmployee.job_class || 'Employee',
-          entry_time: entry ? new Date(entry.timestamp).toLocaleTimeString() : null,
-          exit_time: exit ? new Date(exit.timestamp).toLocaleTimeString() : null,
-          entry_snapshot: entry?.snapshot_url || null,
-          exit_snapshot: exit?.snapshot_url || null,
-          attendance_minutes: attendanceMinutes,
-          working_hours_minutes: 480, // 8 hours default
-          date: date
-        };
-      });
+          formattedRecords.push({
+            employee_id: selectedEmployee.id,
+            employee_name: selectedEmployee.name,
+            job_class: selectedEmployee.job_class || 'Employee',
+            entry_time: record.entry_type === 'entry' ? new Date(record.timestamp).toLocaleTimeString() : null,
+            exit_time: record.entry_type === 'exit' ? new Date(record.timestamp).toLocaleTimeString() : null,
+            entry_snapshot: record.entry_type === 'entry' ? record.snapshot_url : null,
+            exit_snapshot: record.entry_type === 'exit' ? record.snapshot_url : null,
+            attendance_minutes: totalAttendanceMinutes,
+            working_hours_minutes: 480, // 8 hours default
+            date: date,
+            timestamp: record.timestamp,
+            entry_type: record.entry_type
+          });
+        });
+      }
 
       console.log('Formatted date-specific records:', formattedRecords.length);
       setRecords(formattedRecords);
@@ -309,8 +322,15 @@ const PersonLog = () => {
   const handleExport = () => {
     if (!selectedEmployee || records.length === 0) return;
     
-    const filename = `${selectedEmployee.name}_attendance_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    exportAttendanceToCSV(records, filename);
+    if (reportType === 'daily' && showDailyDetail) {
+      // Export detailed activities
+      const filename = `${selectedEmployee.name}_daily_details_${selectedDate}.csv`;
+      exportPersonLogDetailsToCsv(records, dailyActivities, selectedEmployee.name, filename);
+    } else {
+      // Export regular attendance records
+      const filename = `${selectedEmployee.name}_attendance_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      exportAttendanceToCSV(records, filename);
+    }
   };
 
   const handleBackToMain = () => {
@@ -321,17 +341,26 @@ const PersonLog = () => {
   if (showDailyDetail && selectedDate) {
     return (
       <div className="p-4 sm:p-6">
-        <div className="flex items-center space-x-4 mb-6">
-          <Button variant="outline" onClick={handleBackToMain}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Daily Activity</h1>
-            <p className="text-gray-600">
-              {selectedEmployee?.name} - {format(new Date(selectedDate), 'PPP')}
-            </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 mb-6">
+          <div className="flex items-center space-x-4">
+            <Button variant="outline" onClick={handleBackToMain}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Daily Activity Details</h1>
+              <p className="text-sm sm:text-base text-gray-600">
+                {selectedEmployee?.name} - {format(new Date(selectedDate), 'PPP')}
+              </p>
+            </div>
           </div>
+          <Button 
+            onClick={handleExport}
+            className="flex items-center space-x-2 w-full sm:w-auto"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export Details CSV</span>
+          </Button>
         </div>
         
         <DailyDetailView
@@ -520,7 +549,10 @@ const PersonLog = () => {
               </Popover>
               {selectedCalendarDate && (
                 <Button 
-                  onClick={() => handleCalendarDateSelect(selectedCalendarDate)}
+                  onClick={() => {
+                    const dateStr = format(selectedCalendarDate, 'yyyy-MM-dd');
+                    fetchDailyActivities(dateStr);
+                  }}
                   variant="outline"
                   size="sm"
                   className="w-full sm:w-auto"
@@ -560,53 +592,37 @@ const PersonLog = () => {
               <div>
                 {/* Mobile View - Cards */}
                 <div className="lg:hidden space-y-3">
-                  {records.map((record, index) => {
-                    const actions = [];
-                    if (record.entry_time) {
-                      actions.push({
-                        id: `${record.date}-entry`,
-                        timestamp: record.entry_time,
-                        type: 'Entry',
-                        snapshot: record.entry_snapshot
-                      });
-                    }
-                    if (record.exit_time) {
-                      actions.push({
-                        id: `${record.date}-exit`,
-                        timestamp: record.exit_time,
-                        type: 'Exit',
-                        snapshot: record.exit_snapshot
-                      });
-                    }
-                    return actions.map((action, actionIndex) => (
-                      <div key={action.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-500">
-                            Action {index + 1}.{actionIndex + 1}
-                          </span>
-                          <Badge variant={action.type === 'Entry' ? 'default' : 'secondary'}>
-                            {action.type}
-                          </Badge>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="text-sm">
-                            <span className="font-medium">Time:</span> {action.timestamp}
-                          </div>
-                          {action.snapshot && (
-                            <div>
-                              <span className="text-sm font-medium">Snapshot:</span>
-                              <img 
-                                src={action.snapshot} 
-                                alt={action.type}
-                                className="mt-1 w-16 h-16 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
-                                onClick={() => window.open(action.snapshot!, '_blank')}
-                              />
-                            </div>
-                          )}
-                        </div>
+                  {records.map((record, index) => (
+                    <div key={`${record.employee_id}-${record.date}-${index}`} className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-500">
+                          Entry #{index + 1}
+                        </span>
+                        <Badge variant={record.entry_type === 'entry' ? 'default' : 'secondary'}>
+                          {record.entry_type === 'entry' ? 'Entry' : 'Exit'}
+                        </Badge>
                       </div>
-                    ));
-                  })}
+                      <div className="space-y-2">
+                        <div className="text-sm">
+                          <span className="font-medium">Time:</span> {record.entry_time || record.exit_time}
+                        </div>
+                        <div className="text-sm">
+                          <span className="font-medium">Date:</span> {format(new Date(record.date), 'MMM dd, yyyy')}
+                        </div>
+                        {(record.entry_snapshot || record.exit_snapshot) && (
+                          <div>
+                            <span className="text-sm font-medium">Snapshot:</span>
+                            <img 
+                              src={record.entry_snapshot || record.exit_snapshot || ''} 
+                              alt={record.entry_type || 'snapshot'}
+                              className="mt-1 w-16 h-16 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
+                              onClick={() => window.open(record.entry_snapshot || record.exit_snapshot!, '_blank')}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Desktop View - Table */}
@@ -614,60 +630,43 @@ const PersonLog = () => {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead>
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action #</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Entry #</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Snapshot</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {records.map((record, index) => {
-                        const actions = [];
-                        if (record.entry_time) {
-                          actions.push({
-                            id: `${record.date}-entry`,
-                            timestamp: record.entry_time,
-                            type: 'Entry',
-                            snapshot: record.entry_snapshot
-                          });
-                        }
-                        if (record.exit_time) {
-                          actions.push({
-                            id: `${record.date}-exit`,
-                            timestamp: record.exit_time,
-                            type: 'Exit',
-                            snapshot: record.exit_snapshot
-                          });
-                        }
-                        return actions.map((action, actionIndex) => (
-                          <tr key={action.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-2 font-medium">{index + 1}.{actionIndex + 1}</td>
-                            <td className="px-4 py-2">{action.timestamp}</td>
-                            <td className="px-4 py-2">
-                              <Badge variant={action.type === 'Entry' ? 'default' : 'secondary'}>
-                                {action.type}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-2">
-                              {action.snapshot ? (
-                                <img 
-                                  src={action.snapshot} 
-                                  alt={action.type}
-                                  className="w-12 h-12 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
-                                  onClick={() => window.open(action.snapshot!, '_blank')}
-                                />
-                              ) : '-'}
-                            </td>
-                          </tr>
-                        ));
-                      })}
+                      {records.map((record, index) => (
+                        <tr key={`${record.employee_id}-${record.date}-${index}`} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 font-medium">{index + 1}</td>
+                          <td className="px-4 py-2">{format(new Date(record.date), 'MMM dd, yyyy')}</td>
+                          <td className="px-4 py-2">{record.entry_time || record.exit_time}</td>
+                          <td className="px-4 py-2">
+                            <Badge variant={record.entry_type === 'entry' ? 'default' : 'secondary'}>
+                              {record.entry_type === 'entry' ? 'Entry' : 'Exit'}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2">
+                            {(record.entry_snapshot || record.exit_snapshot) ? (
+                              <img 
+                                src={record.entry_snapshot || record.exit_snapshot || ''} 
+                                alt={record.entry_type || 'snapshot'}
+                                className="w-12 h-12 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
+                                onClick={() => window.open(record.entry_snapshot || record.exit_snapshot!, '_blank')}
+                              />
+                            ) : '-'}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                No attendance records found for the selected employee.
+                No attendance records found for the selected date: {selectedCalendarDate ? format(selectedCalendarDate, 'PPP') : 'today'}.
               </div>
             )}
           </CardContent>
