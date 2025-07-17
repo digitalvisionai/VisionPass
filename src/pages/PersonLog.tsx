@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,10 +20,11 @@ import { exportAttendanceToCSV } from '@/utils/csvExport';
 interface Employee {
   id: string;
   name: string;
-  email: string;
-  phone: string;
-  job_class: string;
-  hire_date: string;
+  email: string | null;
+  phone: string | null;
+  job_class: string | null;
+  hire_date: string | null;
+  photo_url: string | null;
 }
 
 interface ActivityLog {
@@ -200,8 +200,17 @@ const PersonLog = () => {
     }
   };
 
-  const handleEmployeeSelect = (employee: Employee | null) => {
-    setSelectedEmployee(employee);
+  const handleEmployeeSelect = (employee: Omit<Employee, 'hire_date'> | null) => {
+    if (employee) {
+      // Convert the employee from EmployeeSearch format to PersonLog format
+      const fullEmployee: Employee = {
+        ...employee,
+        hire_date: null // Set default value since EmployeeSearch doesn't provide this
+      };
+      setSelectedEmployee(fullEmployee);
+    } else {
+      setSelectedEmployee(null);
+    }
     setRecords([]);
     setSelectedCalendarDate(new Date());
   };
