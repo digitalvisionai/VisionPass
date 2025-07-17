@@ -355,7 +355,7 @@ const AdminManagement = () => {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Job Class</TableHead>
+                    <TableHead>Job Title</TableHead>
                     <TableHead>Hire Date</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>

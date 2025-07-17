@@ -164,13 +164,13 @@ const EditEmployeeForm = ({ employee, onEmployeeUpdated, onCancel }: EditEmploye
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="job_class">Job Class</Label>
+              <Label htmlFor="job_class">Job Title</Label>
               <Input
                 id="job_class"
                 name="job_class"
                 value={formData.job_class}
                 onChange={handleInputChange}
-                placeholder="Enter job class"
+                placeholder="Enter job title"
               />
             </div>
             

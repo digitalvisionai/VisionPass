@@ -297,7 +297,7 @@ const EmployeeDetail = () => {
                 }
               </div>
               <div>
-                <span className="font-medium">Job Class:</span> {employee.job_class || 'Employee'}
+                <span className="font-medium">Job Title:</span> {employee.job_class || 'Employee'}
               </div>
             </div>
           </CardContent>

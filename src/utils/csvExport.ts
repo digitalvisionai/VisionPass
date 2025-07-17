@@ -3,7 +3,7 @@ import { AttendanceRecord } from '@/hooks/useAttendanceData';
 import { formatMinutesToHours } from './timeUtils';
 
 export const exportAttendanceToCSV = (records: AttendanceRecord[], filename: string) => {
-  const headers = ['Employee Name', 'Job Class', 'Date', 'Entry Time', 'Exit Time', 'Attendance Hours', 'Leak Hours', 'Entry Snapshot', 'Exit Snapshot'];
+  const headers = ['Employee Name', 'Job Title', 'Date', 'Entry Time', 'Exit Time', 'Attendance Hours', 'Leak Hours', 'Entry Snapshot', 'Exit Snapshot'];
   
   const csvContent = [
     headers.join(','),

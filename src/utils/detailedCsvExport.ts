@@ -34,7 +34,7 @@ export const exportPersonLogDetailsToCsv = (
 export const exportStaffLogWithColorCoding = (records: AttendanceRecord[], filename: string, workStartTime: string = '09:00', workEndTime: string = '17:00') => {
   const headers = [
     'Employee Name', 
-    'Job Class', 
+    'Job Title', 
     'Date', 
     'Entry Time', 
     'Exit Time', 

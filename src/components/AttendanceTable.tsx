@@ -94,7 +94,7 @@ const AttendanceTable = ({ records, showJobClass = false, workStartTime = '09:00
 
             {showJobClass && (
               <div className="mt-2">
-                <span className="text-gray-500 text-sm">Job Class: </span>
+                <span className="text-gray-500 text-sm">Job Title: </span>
                 <span className="text-sm font-medium">{record.job_class}</span>
               </div>
             )}
@@ -138,7 +138,7 @@ const AttendanceTable = ({ records, showJobClass = false, workStartTime = '09:00
               </th>
               {showJobClass && (
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Job Class
+                  Job Title
                 </th>
               )}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
