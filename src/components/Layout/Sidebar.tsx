@@ -8,7 +8,6 @@ import {
   User, 
   Settings, 
   LogOut,
-  Shield,
   X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -87,8 +86,12 @@ const Sidebar = ({ onClose }: SidebarProps) => {
       {/* Logo */}
       <div className="p-4 lg:p-6 border-b border-slate-700">
         <div className="flex items-center space-x-3">
-          <div className="bg-blue-600 p-2 rounded-lg">
-            <Shield className="h-6 w-6" />
+          <div className="flex-shrink-0">
+            <img 
+              src="/lovable-uploads/f0841480-cafb-4836-8210-6294134bc90d.png" 
+              alt="VisionPass Logo" 
+              className="h-10 w-10 object-contain"
+            />
           </div>
           <div className="flex-1">
             <h1 className="text-lg lg:text-xl font-bold">VisionPass</h1>

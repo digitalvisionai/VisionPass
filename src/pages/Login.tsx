@@ -48,7 +48,20 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
+        {/* Logos at the top */}
         <div className="text-center">
+          <div className="flex flex-col items-center space-y-4 mb-6">
+            <img 
+              src="/lovable-uploads/645e2f58-74f1-4736-9ed6-ce62d08f2a8d.png" 
+              alt="Digital Vision" 
+              className="h-16 object-contain"
+            />
+            <img 
+              src="/lovable-uploads/f0841480-cafb-4836-8210-6294134bc90d.png" 
+              alt="VisionPass" 
+              className="h-20 object-contain"
+            />
+          </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Face Recognition Attendance System
           </h2>

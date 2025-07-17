@@ -8,11 +8,21 @@ import { useAttendanceData } from '@/hooks/useAttendanceData';
 import { useWorkTimeSettings } from '@/hooks/useWorkTimeSettings';
 import AttendanceTable from '@/components/AttendanceTable';
 import DateRangeSelector from '@/components/DateRangeSelector';
+import ImageViewer from '@/components/ImageViewer';
 import { exportStaffLogWithColorCoding } from '@/utils/detailedCsvExport';
 
 const StaffLog = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [dateRange, setDateRange] = useState<string>('today');
+  const [imageViewer, setImageViewer] = useState<{
+    isOpen: boolean;
+    imageUrl: string | null;
+    title: string;
+  }>({
+    isOpen: false,
+    imageUrl: null,
+    title: '',
+  });
   const { workStartTime, workEndTime } = useWorkTimeSettings();
 
   const targetDate = useMemo(() => {
@@ -46,6 +56,22 @@ const StaffLog = () => {
   const handleRefresh = () => {
     console.log('Refreshing data for date:', targetDate);
     refetch(targetDate);
+  };
+
+  const openImageViewer = (imageUrl: string, employeeName: string, type: string) => {
+    setImageViewer({
+      isOpen: true,
+      imageUrl,
+      title: `${employeeName} - ${type} Snapshot`,
+    });
+  };
+
+  const closeImageViewer = () => {
+    setImageViewer({
+      isOpen: false,
+      imageUrl: null,
+      title: '',
+    });
   };
 
   // Add color coding logic
@@ -178,6 +204,7 @@ const StaffLog = () => {
                       records={[record]} 
                       showJobClass={true}
                       workStartTime={workStartTime}
+                      onImageClick={openImageViewer}
                     />
                   </div>
                 ))}
@@ -186,6 +213,14 @@ const StaffLog = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Image Viewer */}
+      <ImageViewer
+        imageUrl={imageViewer.imageUrl}
+        isOpen={imageViewer.isOpen}
+        onClose={closeImageViewer}
+        title={imageViewer.title}
+      />
     </div>
   );
 };

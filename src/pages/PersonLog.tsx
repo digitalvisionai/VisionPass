@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import AttendanceTable from '@/components/AttendanceTable';
 import MonthlyView from '@/components/MonthlyView';
 import DailyDetailView from '@/components/DailyDetailView';
 import EmployeeSearch from '@/components/EmployeeSearch';
+import ImageViewer from '@/components/ImageViewer';
 import { AttendanceRecord } from '@/hooks/useAttendanceData';
 import { exportAttendanceToCSV } from '@/utils/csvExport';
 import { exportPersonLogDetailsToCsv } from '@/utils/detailedCsvExport';
@@ -46,6 +48,15 @@ const PersonLog = () => {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [imageViewer, setImageViewer] = useState<{
+    isOpen: boolean;
+    imageUrl: string | null;
+    title: string;
+  }>({
+    isOpen: false,
+    imageUrl: null,
+    title: '',
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -338,6 +349,22 @@ const PersonLog = () => {
     setSelectedDate(null);
   };
 
+  const openImageViewer = (imageUrl: string, employeeName: string, type: string) => {
+    setImageViewer({
+      isOpen: true,
+      imageUrl,
+      title: `${employeeName} - ${type} Snapshot`,
+    });
+  };
+
+  const closeImageViewer = () => {
+    setImageViewer({
+      isOpen: false,
+      imageUrl: null,
+      title: '',
+    });
+  };
+
   if (showDailyDetail && selectedDate) {
     return (
       <div className="p-4 sm:p-6">
@@ -616,7 +643,7 @@ const PersonLog = () => {
                               src={record.entry_snapshot || record.exit_snapshot || ''} 
                               alt={record.entry_type || 'snapshot'}
                               className="mt-1 w-16 h-16 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
-                              onClick={() => window.open(record.entry_snapshot || record.exit_snapshot!, '_blank')}
+                              onClick={() => openImageViewer(record.entry_snapshot || record.exit_snapshot!, record.employee_name, record.entry_type || 'snapshot')}
                             />
                           </div>
                         )}
@@ -654,7 +681,7 @@ const PersonLog = () => {
                                 src={record.entry_snapshot || record.exit_snapshot || ''} 
                                 alt={record.entry_type || 'snapshot'}
                                 className="w-12 h-12 rounded object-cover cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
-                                onClick={() => window.open(record.entry_snapshot || record.exit_snapshot!, '_blank')}
+                                onClick={() => openImageViewer(record.entry_snapshot || record.exit_snapshot!, record.employee_name, record.entry_type || 'snapshot')}
                               />
                             ) : '-'}
                           </td>
@@ -672,6 +699,14 @@ const PersonLog = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Image Viewer */}
+      <ImageViewer
+        imageUrl={imageViewer.imageUrl}
+        isOpen={imageViewer.isOpen}
+        onClose={closeImageViewer}
+        title={imageViewer.title}
+      />
     </div>
   );
 };
