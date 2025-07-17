@@ -8,17 +8,24 @@ import {
   User, 
   Settings, 
   LogOut,
-  Shield
+  Shield,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
-const Sidebar = () => {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+const Sidebar = ({ onClose }: SidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const navItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -57,8 +64,26 @@ const Sidebar = () => {
     }
   };
 
+  const handleNavClick = () => {
+    if (isMobile && onClose) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="bg-slate-900 text-white w-full lg:w-64 min-h-screen lg:min-h-0 flex flex-col">
+    <div className="bg-slate-900 text-white w-full h-full flex flex-col">
+      {/* Mobile Close Button */}
+      {isMobile && onClose && (
+        <div className="flex justify-end p-4 lg:hidden">
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-white"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+      )}
+
       {/* Logo */}
       <div className="p-4 lg:p-6 border-b border-slate-700">
         <div className="flex items-center space-x-3">
@@ -81,14 +106,15 @@ const Sidebar = () => {
               <li key={item.name}>
                 <NavLink
                   to={item.href}
-                  className={`flex items-center space-x-2 lg:space-x-3 p-2 lg:p-3 rounded-lg transition-colors touch-manipulation ${
+                  onClick={handleNavClick}
+                  className={`flex items-center space-x-2 lg:space-x-3 p-3 lg:p-3 rounded-lg transition-colors touch-manipulation ${
                     isActive
                       ? 'bg-blue-600 text-white'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
-                  <item.icon className="h-4 w-4 lg:h-5 lg:w-5" />
-                  <span className="text-sm lg:text-base">{item.name}</span>
+                  <item.icon className="h-5 w-5 lg:h-5 lg:w-5" />
+                  <span className="text-base lg:text-base">{item.name}</span>
                 </NavLink>
               </li>
             );
@@ -101,10 +127,10 @@ const Sidebar = () => {
         <Button
           onClick={handleLogout}
           variant="ghost"
-          className="w-full justify-start text-slate-300 hover:bg-slate-800 hover:text-white touch-manipulation"
+          className="w-full justify-start text-slate-300 hover:bg-slate-800 hover:text-white touch-manipulation p-3"
         >
-          <LogOut className="h-4 w-4 lg:h-5 lg:w-5 mr-2 lg:mr-3" />
-          <span className="text-sm lg:text-base">Logout</span>
+          <LogOut className="h-5 w-5 lg:h-5 lg:w-5 mr-2 lg:mr-3" />
+          <span className="text-base lg:text-base">Logout</span>
         </Button>
       </div>
     </div>

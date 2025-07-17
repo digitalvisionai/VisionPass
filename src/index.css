@@ -16,13 +16,20 @@
   }
   
   /* Better scrolling */
-  .overflow-y-auto {
+  .overflow-y-auto, .overflow-auto {
     -webkit-overflow-scrolling: touch;
   }
   
   /* Prevent horizontal scroll on mobile */
   body {
     overflow-x: hidden;
+  }
+  
+  /* Ensure full height on mobile */
+  html, body, #root {
+    height: 100%;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height */
   }
 }
 
@@ -39,6 +46,13 @@ button {
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+}
+
+/* Ensure proper mobile viewport handling */
+@supports (-webkit-touch-callout: none) {
+  .min-h-screen {
+    min-height: -webkit-fill-available;
+  }
 }
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
