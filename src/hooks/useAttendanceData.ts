@@ -34,6 +34,45 @@ export const useAttendanceData = (targetDate?: Date) => {
       
       console.log('Fetching attendance data for date:', dateParam);
       
+      // Try using the Supabase function first
+      try {
+        const { data: functionData, error: functionError } = await supabase
+          .rpc('get_daily_attendance_summary', { target_date: dateParam });
+
+        if (!functionError && functionData) {
+          console.log('Function data:', functionData);
+          
+          const formattedRecords: AttendanceRecord[] = functionData.map((record: any) => ({
+            employee_id: record.employee_id,
+            employee_name: record.employee_name,
+            job_class: record.job_class || 'Employee',
+            entry_time: record.entry_time ? new Date(record.entry_time).toLocaleTimeString('en-US', { 
+              hour12: false, 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }) : null,
+            exit_time: record.exit_time ? new Date(record.exit_time).toLocaleTimeString('en-US', { 
+              hour12: false, 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }) : null,
+            entry_snapshot: record.entry_snapshot,
+            exit_snapshot: record.exit_snapshot,
+            attendance_minutes: record.attendance_minutes || 0,
+            working_hours_minutes: record.working_hours_minutes || 480,
+            date: dateParam
+          }));
+
+          setRecords(formattedRecords);
+          return;
+        }
+      } catch (funcError) {
+        console.log('Function failed, falling back to manual query:', funcError);
+      }
+
+      // Fallback to manual data processing
+      console.log('Using manual data processing...');
+      
       // Get all employees
       const { data: employees, error: empError } = await supabase
         .from('employees')
@@ -44,16 +83,15 @@ export const useAttendanceData = (targetDate?: Date) => {
         throw empError;
       }
 
-      // Get attendance records for the specific date using date casting
-      console.log('Date parameter for query:', dateParam);
+      // Create more flexible date range
+      const startDate = new Date(dateParam + 'T00:00:00.000Z');
+      const endDate = new Date(dateParam + 'T23:59:59.999Z');
       
-      // Use a more flexible date range to account for timezone differences
-      const startDate = new Date(dateParam);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(dateParam);
-      endDate.setHours(23, 59, 59, 999);
-      
-      console.log('Date range:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+      console.log('Date range:', { 
+        startDate: startDate.toISOString(), 
+        endDate: endDate.toISOString(),
+        originalDate: dateParam 
+      });
       
       const { data: attendanceRecords, error: attError } = await supabase
         .from('attendance_records')
@@ -67,20 +105,13 @@ export const useAttendanceData = (targetDate?: Date) => {
         throw attError;
       }
 
-      console.log('Data fetched - employees:', employees?.length, 'attendance records:', attendanceRecords?.length);
-      
-      // Debug: Check if there's any data at all
-      if (attendanceRecords?.length === 0) {
-        const { data: allRecords, error: allError } = await supabase
-          .from('attendance_records')
-          .select('*')
-          .limit(5);
-        console.log('Debug - All attendance records (first 5):', allRecords);
-      }
+      console.log('Raw attendance records:', attendanceRecords);
 
       // Process the data manually
       const processedRecords: AttendanceRecord[] = employees?.map(employee => {
         const employeeRecords = attendanceRecords?.filter(record => record.employee_id === employee.id) || [];
+        
+        console.log(`Records for ${employee.name}:`, employeeRecords);
         
         const entryRecord = employeeRecords.find(record => record.entry_type === 'entry');
         const exitRecord = employeeRecords.find(record => record.entry_type === 'exit');
@@ -96,8 +127,16 @@ export const useAttendanceData = (targetDate?: Date) => {
           employee_id: employee.id,
           employee_name: employee.name,
           job_class: employee.job_class || 'Employee',
-          entry_time: entryRecord ? new Date(entryRecord.timestamp).toLocaleTimeString() : null,
-          exit_time: exitRecord ? new Date(exitRecord.timestamp).toLocaleTimeString() : null,
+          entry_time: entryRecord ? new Date(entryRecord.timestamp).toLocaleTimeString('en-US', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : null,
+          exit_time: exitRecord ? new Date(exitRecord.timestamp).toLocaleTimeString('en-US', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : null,
           entry_snapshot: entryRecord?.snapshot_url || null,
           exit_snapshot: exitRecord?.snapshot_url || null,
           attendance_minutes: attendanceMinutes,
@@ -106,7 +145,7 @@ export const useAttendanceData = (targetDate?: Date) => {
         };
       }) || [];
 
-      console.log('Processed records:', processedRecords.length);
+      console.log('Final processed records:', processedRecords);
       setRecords(processedRecords);
       
     } catch (error) {
@@ -116,7 +155,7 @@ export const useAttendanceData = (targetDate?: Date) => {
         description: "Failed to fetch attendance data. Please try again.",
         variant: "destructive",
       });
-      setRecords([]); // Set empty array instead of leaving in loading state
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -124,7 +163,7 @@ export const useAttendanceData = (targetDate?: Date) => {
 
   useEffect(() => {
     fetchAttendanceData(targetDate);
-  }, [dateString]); // Use dateString instead of targetDate to prevent infinite loops
+  }, [dateString]);
 
   return { records, loading, refetch: fetchAttendanceData };
 };
