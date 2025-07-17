@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -367,11 +368,7 @@ const PersonLog = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Search Employee
             </label>
-            <EmployeeSearch
-              onEmployeeSelect={handleEmployeeSelect}
-              selectedEmployee={selectedEmployee}
-              allEmployees={allEmployees}
-            />
+            <EmployeeSearch onEmployeeSelect={handleEmployeeSelect} />
           </div>
 
           {selectedEmployee && (
