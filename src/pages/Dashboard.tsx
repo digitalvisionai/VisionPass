@@ -93,7 +93,7 @@ const Dashboard = () => {
           entry_type,
           timestamp,
           snapshot_url,
-          employees!inner(name)
+          employees!attendance_records_employee_id_fkey(name)
         `)
         .order('timestamp', { ascending: false })
         .limit(10);
@@ -149,13 +149,37 @@ const Dashboard = () => {
 
   return (
     <div className="p-4 sm:p-6">
+      {/* Mobile-only: VisionPass logo at top left, Digital Vision logo at top right above dashboard title */}
+      <div className="sm:hidden w-full relative mb-4" style={{ minHeight: '120px' }}>
+        <img
+          src="/lovable-uploads/vision pass.png"
+          alt="VisionPass Logo"
+          className="absolute top-0 left-0 h-32 w-auto object-contain"
+          style={{ maxWidth: '180px' }}
+        />
+        <img
+          src="/lovable-uploads/645e2f58-74f1-4736-9ed6-ce62d08f2a8d.png"
+          alt="Digital Vision Logo"
+          className="absolute top-0 right-0 h-28 w-auto object-contain"
+          style={{ maxWidth: '160px' }}
+        />
+      </div>
+      {/* Desktop-only: VisionPass logo centered above dashboard title */}
+      <div className="hidden sm:flex w-full justify-center mb-4">
+        <img
+          src="/lovable-uploads/vision pass.png"
+          alt="VisionPass Logo"
+          className="h-32 w-auto object-contain drop-shadow-md"
+          style={{ maxWidth: '260px' }}
+        />
+      </div>
       {/* Header with Digital Vision Logo */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600">Face Recognition Attendance System Overview</p>
         </div>
-        <div className="mt-4 sm:mt-0">
+        <div className="mt-4 sm:mt-0 hidden sm:block">
           <img 
             src="/lovable-uploads/645e2f58-74f1-4736-9ed6-ce62d08f2a8d.png" 
             alt="Digital Vision" 
@@ -211,65 +235,51 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Real-time Components */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Real-time Attendance */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Real-time Attendance</CardTitle>
-            <CardDescription>Live attendance tracking</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RealTimeAttendance />
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest attendance entries and exits</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentActivities.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No recent activity
-                </p>
-              ) : (
-                recentActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
-                    <div className={`w-2 h-2 rounded-full ${
-                      activity.entry_type === 'entry' ? 'bg-green-500' : 'bg-red-500'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {activity.employee_name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {activity.entry_type === 'entry' ? 'Entered' : 'Exited'} at{' '}
-                        {format(new Date(activity.timestamp), 'HH:mm')}
-                      </p>
-                    </div>
-                    {activity.snapshot_url && (
-                      <button
-                        onClick={() => openImageViewer(activity.snapshot_url!, activity.employee_name, activity.entry_type)}
-                        className="flex-shrink-0"
-                      >
-                        <img 
-                          src={activity.snapshot_url} 
-                          alt="Snapshot"
-                          className="w-8 h-8 rounded object-cover border-2 border-gray-200 hover:border-blue-500 transition-colors cursor-pointer"
-                        />
-                      </button>
-                    )}
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+          <CardDescription>Latest attendance entries and exits</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {recentActivities.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No recent activity
+              </p>
+            ) : (
+              recentActivities.map((activity) => (
+                <div key={activity.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
+                  <div className={`w-2 h-2 rounded-full ${
+                    activity.entry_type === 'entry' ? 'bg-green-500' : 'bg-red-500'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {activity.employee_name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {activity.entry_type === 'entry' ? 'Entered' : 'Exited'} at{' '}
+                      {format(new Date(activity.timestamp), 'HH:mm')}
+                    </p>
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                  {activity.snapshot_url && (
+                    <button
+                      onClick={() => openImageViewer(activity.snapshot_url!, activity.employee_name, activity.entry_type)}
+                      className="flex-shrink-0"
+                    >
+                      <img 
+                        src={activity.snapshot_url} 
+                        alt="Snapshot"
+                        className="w-8 h-8 rounded object-cover border-2 border-gray-200 hover:border-blue-500 transition-colors cursor-pointer"
+                      />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Image Viewer */}
       <ImageViewer

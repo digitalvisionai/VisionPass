@@ -208,6 +208,7 @@ const AdminManagement = () => {
           <h1 className="text-3xl font-bold text-gray-900">Admin Management</h1>
           <p className="text-gray-600">Manage administrators, employees, and system settings</p>
         </div>
+        {/* Remove logos here */}
       </div>
 
       <Tabs defaultValue="admins" className="space-y-6">

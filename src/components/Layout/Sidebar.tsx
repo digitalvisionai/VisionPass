@@ -88,9 +88,9 @@ const Sidebar = ({ onClose }: SidebarProps) => {
         <div className="flex items-center space-x-3">
           <div className="flex-shrink-0">
             <img 
-              src="/lovable-uploads/f0841480-cafb-4836-8210-6294134bc90d.png" 
+              src="/lovable-uploads/vision pass.png" 
               alt="VisionPass Logo" 
-              className="h-10 w-10 object-contain"
+              className="h-20 w-20 object-contain drop-shadow-md"
             />
           </div>
           <div className="flex-1">

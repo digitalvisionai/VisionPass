@@ -47,28 +47,29 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Logos at the top */}
-        <div className="text-center">
-          <div className="flex flex-col items-center space-y-4 mb-6">
-            <img 
-              src="/lovable-uploads/645e2f58-74f1-4736-9ed6-ce62d08f2a8d.png" 
-              alt="Digital Vision" 
-              className="h-16 object-contain"
-            />
-            <img 
-              src="/lovable-uploads/f0841480-cafb-4836-8210-6294134bc90d.png" 
-              alt="VisionPass" 
-              className="h-20 object-contain"
-            />
-          </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Face Recognition Attendance System
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Admin Login Portal
-          </p>
-        </div>
+      {/* Digital Vision logo at the very top left corner of the page */}
+      <img
+        src="/lovable-uploads/645e2f58-74f1-4736-9ed6-ce62d08f2a8d.png"
+        alt="Digital Vision Logo"
+        className="fixed top-0 left-0 h-24 w-auto object-contain drop-shadow-md m-6 z-50"
+        style={{ maxWidth: '160px' }}
+      />
+      {/* VisionPass logo absolutely centered above the login card, not affecting card layout */}
+      <div className="fixed top-10 left-1/2 transform -translate-x-1/2 z-40 pointer-events-none w-full flex justify-center">
+        <img
+          src="/lovable-uploads/vision pass.png"
+          alt="VisionPass Logo"
+          className="h-64 w-auto object-contain drop-shadow-md mb-4 sm:h-64 sm:mb-8 max-w-xs sm:max-w-lg"
+          style={{ maxWidth: '90vw' }}
+        />
+      </div>
+      <div className="max-w-md w-full space-y-8 pt-44 sm:pt-32">
+        <h2 className="mt-6 text-3xl font-extrabold text-gray-900 text-center">
+          Face Recognition Attendance System
+        </h2>
+        <p className="mt-2 text-sm text-gray-600 text-center">
+          Admin Login Portal
+        </p>
 
         <Card>
           <CardHeader>
