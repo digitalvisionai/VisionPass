@@ -115,19 +115,24 @@ export const useAttendanceData = (targetDate?: Date) => {
       // Process the data manually
       const processedRecords: AttendanceRecord[] = employees?.map(employee => {
         const employeeRecords = attendanceRecords?.filter(record => record.employee_id === employee.id) || [];
-        
-        console.log(`useAttendanceData - Records for ${employee.name}:`, employeeRecords.length);
-        
-        const entryRecord = employeeRecords.find(record => record.entry_type === 'entry');
-        const exitRecord = employeeRecords.find(record => record.entry_type === 'exit');
-        
+        // Sort by timestamp
+        employeeRecords.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        // Pair up entry/exit and sum durations
         let attendanceMinutes = 0;
-        if (entryRecord && exitRecord) {
-          const entryTime = new Date(entryRecord.timestamp);
-          const exitTime = new Date(exitRecord.timestamp);
-          attendanceMinutes = Math.floor((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
+        let lastEntry: any = null;
+        for (const rec of employeeRecords) {
+          if (rec.entry_type === 'entry') {
+            lastEntry = rec;
+          } else if (rec.entry_type === 'exit' && lastEntry) {
+            const entryTime = new Date(lastEntry.timestamp);
+            const exitTime = new Date(rec.timestamp);
+            attendanceMinutes += Math.floor((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
+            lastEntry = null;
+          }
         }
-
+        // Use first entry and last exit for display
+        const entryRecord = employeeRecords.find(record => record.entry_type === 'entry');
+        const exitRecord = employeeRecords.reverse().find(record => record.entry_type === 'exit');
         return {
           employee_id: employee.id,
           employee_name: employee.name,

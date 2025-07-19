@@ -151,6 +151,9 @@ const AttendanceTable = ({ records, showJobClass = false, workStartTime = '09:00
                 Hours Worked
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Leak Hours
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -192,6 +195,11 @@ const AttendanceTable = ({ records, showJobClass = false, workStartTime = '09:00
                   </div>
                   <div className="text-xs text-gray-500">
                     Expected: {formatMinutesToHours(record.working_hours_minutes)}
+                  </div>
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">
+                    {formatMinutesToHours(Math.max(0, record.working_hours_minutes - record.attendance_minutes))}
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">

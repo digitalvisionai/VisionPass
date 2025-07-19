@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Clock, TrendingUp, AlertCircle } from 'lucide-react';
+import { Users, Clock, TrendingUp, AlertCircle, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import RealTimeAttendance from '@/components/RealTimeAttendance';
@@ -112,16 +112,10 @@ const Dashboard = () => {
       });
       const onTimePercentage = totalArrivals > 0 ? Math.round((onTimeCount / totalArrivals) * 100) : 0;
 
-      // Fetch recent activities with employee names
+      // Fetch recent activities from recent_activity
       const { data: activities, error: activitiesError } = await supabase
-        .from('attendance_records')
-        .select(`
-          id,
-          entry_type,
-          timestamp,
-          snapshot_url,
-          employees!attendance_records_employee_id_fkey(name)
-        `)
+        .from('recent_activity')
+        .select('*')
         .order('timestamp', { ascending: false })
         .limit(10);
 
@@ -129,7 +123,7 @@ const Dashboard = () => {
 
       const formattedActivities: RecentActivity[] = activities?.map(activity => ({
         id: activity.id,
-        employee_name: (activity.employees as any).name,
+        employee_name: activity.employee_name,
         entry_type: activity.entry_type,
         timestamp: activity.timestamp,
         snapshot_url: activity.snapshot_url
@@ -164,6 +158,21 @@ const Dashboard = () => {
       imageUrl: null,
       title: '',
     });
+  };
+
+  // Add this function to handle deleting a recent activity
+  const handleDeleteActivity = async (activityId: string) => {
+    if (!window.confirm('Are you sure you want to delete this activity?')) return;
+    try {
+      const { error } = await supabase
+        .from('recent_activity')
+        .delete()
+        .eq('id', activityId);
+      if (error) throw error;
+      setRecentActivities((prev) => prev.filter((a) => a.id !== activityId));
+    } catch (error) {
+      alert('Failed to delete activity.');
+    }
   };
 
   if (loading) {
@@ -301,6 +310,13 @@ const Dashboard = () => {
                       />
                     </button>
                   )}
+                  <button
+                    onClick={() => handleDeleteActivity(activity.id)}
+                    className="ml-2 text-xs text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors"
+                    title="Delete Activity"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               ))
             )}
