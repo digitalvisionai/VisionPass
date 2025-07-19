@@ -54,6 +54,44 @@ const AttendanceTable = ({ records, showJobClass = false, workStartTime = '09:00
     }
   };
 
+  // Add a function to calculate leak hours for staff log
+  const calculateLeakMinutes = (record: AttendanceRecord, workStartTime: string, workEndTime: string) => {
+    // If no entry/exit, leak is full work period
+    if (!record.entry_time && !record.exit_time) {
+      return record.working_hours_minutes;
+    }
+    // Calculate leak as time before first entry and after last exit
+    // (Assume only one entry/exit per day for this table)
+    const [startHour, startMinute] = workStartTime.split(':').map(Number);
+    const [endHour, endMinute] = workEndTime.split(':').map(Number);
+    const workStart = new Date(`1970-01-01T${workStartTime}:00`);
+    const workEnd = new Date(`1970-01-01T${workEndTime}:00`);
+    let leakMinutes = 0;
+    if (record.entry_time) {
+      const entry = new Date(`1970-01-01T${record.entry_time}`);
+      if (entry > workStart) {
+        leakMinutes += Math.floor((entry.getTime() - workStart.getTime()) / (1000 * 60));
+      }
+    } else {
+      leakMinutes += Math.floor((workEnd.getTime() - workStart.getTime()) / (1000 * 60));
+    }
+    if (record.exit_time) {
+      const exit = new Date(`1970-01-01T${record.exit_time}`);
+      if (exit < workEnd) {
+        leakMinutes += Math.floor((workEnd.getTime() - exit.getTime()) / (1000 * 60));
+      }
+    }
+    // If entry/exit are both present and entry is after exit, treat as full leak
+    if (record.entry_time && record.exit_time) {
+      const entry = new Date(`1970-01-01T${record.entry_time}`);
+      const exit = new Date(`1970-01-01T${record.exit_time}`);
+      if (entry > exit) {
+        leakMinutes = record.working_hours_minutes;
+      }
+    }
+    return Math.max(0, leakMinutes);
+  };
+
   if (records.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -199,7 +237,7 @@ const AttendanceTable = ({ records, showJobClass = false, workStartTime = '09:00
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900">
-                    {formatMinutesToHours(Math.max(0, record.working_hours_minutes - record.attendance_minutes))}
+                    {formatMinutesToHours(calculateLeakMinutes(record, workStartTime, '17:00'))}
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
